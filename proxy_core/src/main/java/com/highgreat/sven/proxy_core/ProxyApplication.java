@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 
@@ -73,7 +74,6 @@ public class ProxyApplication extends Application {
             }
         }
 
-        //
         try {
             //把解密后的文件加载到系统
             loadDex(dexFiles, versionDir);
@@ -92,10 +92,22 @@ public class ProxyApplication extends Application {
         Field dexElementsField = Utils.findField(pathList, "dexElements");
         Object[] dexElements = (Object[]) dexElementsField.get(pathList);
         //反射得到初始化dexElements的方法
-        Method makeDexElements = Utils.findMethod(pathList, "makePathElements", List.class, File.class, List.class);
-
-        ArrayList<IOException> suppressedExceptions = new ArrayList<IOException>();
-        Object[] addElements = (Object[]) makeDexElements.invoke(pathList, dexFiles, versionDir, suppressedExceptions);
+        Object[] addElements;
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N){//7.0  makeDexElements
+            Method makeDexElements = Utils.findMethod(pathList, "makeDexElements", List.class, File.class, List.class,ClassLoader.class);
+            ArrayList<IOException> suppressedExceptions = new ArrayList<IOException>();
+            addElements = (Object[]) makeDexElements.invoke(pathList,dexFiles,versionDir,suppressedExceptions,getClassLoader());
+        }else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){//6.0  makePathElements
+            Method makeDexElements = Utils.findMethod(pathList, "makePathElements", List.class, File.class, List.class);
+            ArrayList<IOException> suppressedExceptions = new ArrayList<IOException>();
+            addElements = (Object[]) makeDexElements.invoke(pathList, dexFiles, versionDir, suppressedExceptions);
+        }else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP){//5.0 makeDexElements
+            Method makeDexElements = Utils.findMethod(pathList, "makeDexElements", ArrayList.class, File.class, ArrayList.class);
+            ArrayList<IOException> suppressedExceptions = new ArrayList<IOException>();
+            addElements = (Object[]) makeDexElements.invoke(pathList, dexFiles, versionDir, suppressedExceptions);
+        }else{
+            return;
+        }
 
         //合并数组
         Object[] newElements = (Object[]) Array.newInstance(dexElements.getClass().getComponentType(), dexElements.length + addElements.length);
